@@ -4,19 +4,18 @@ import streamlit as st
 from PIL import Image
 import nltk
 from nltk.tokenize import word_tokenize, sent_tokenize
-import io
 
 # Ensure you have the NLTK punkt tokenizer downloaded
 nltk.download('punkt')
 
 # Function to extract text and images from PDF
-def extract_pdf_content(pdf_file):
+def extract_pdf_content(pdf_path):
     pdf_data = {}
-    doc = fitz.open(stream=pdf_file.read(), filetype="pdf")  # Open PDF from uploaded file
-
+    doc = fitz.open(pdf_path)
+    
     for page_num in range(len(doc)):
         page = doc[page_num]
-        text = page.get_text("text")
+        text = page.get_text()
         images = page.get_images(full=True)
 
         # Store text and images for each page
@@ -29,11 +28,12 @@ def extract_pdf_content(pdf_file):
             xref = img[0]
             base_image = doc.extract_image(xref)
             image_bytes = base_image["image"]
-            image_ext = base_image["ext"]  # Get image extension
+            image_filename = f"image_page_{page_num}_{img_index}.png"
+            pdf_data[f"page_{page_num}"]["images"].append(image_filename)
 
-            # Store image as bytes instead of saving to a file
-            image_filename = f"image_page_{page_num}_{img_index}.{image_ext}"
-            pdf_data[f"page_{page_num}"]["images"].append((image_filename, image_bytes))
+            # Save the image
+            with open(image_filename, "wb") as img_file:
+                img_file.write(image_bytes)
 
     return pdf_data
 
@@ -54,32 +54,30 @@ def handle_query(query, pdf_data):
 
     return response_text.strip(), response_images
 
+# Path to your PDF file
+pdf_path = "glamour-aug-2023.pdf"
+pdf_data = extract_pdf_content(pdf_path)
+
 # Streamlit app UI
 st.title("PDF Chatbot")
 
-# Upload PDF
-pdf_file = st.file_uploader("Upload a PDF", type=["pdf"])
+# Input for user query
+user_query = st.text_input("Ask something about the PDF")
 
-if pdf_file:
-    pdf_data = extract_pdf_content(pdf_file)
+# Handle query and display results
+if st.button("Ask"):
+    if user_query:
+        response_text, response_images = handle_query(user_query, pdf_data)
 
-    # Input for user query
-    user_query = st.text_input("Ask something about the PDF")
-
-    # Handle query and display results
-    if st.button("Ask"):
-        if user_query:
-            response_text, response_images = handle_query(user_query, pdf_data)
-
-            if response_text:
-                st.text_area("Response", response_text)
-
-                if response_images:
-                    for img_filename, img_bytes in response_images:
-                        img = Image.open(io.BytesIO(img_bytes))  # Load image from bytes
-                        img = img.resize((200, 200), Image.LANCZOS)  # Resize for display
-                        st.image(img, caption=img_filename)
-            else:
-                st.write("I'm sorry, I couldn't find any relevant information.")
+        if response_text:
+            st.text_area("Response", response_text)
+            
+            if response_images:
+                for img_path in response_images:
+                    img = Image.open(img_path)
+                    img = img.resize((200, 200), Image.LANCZOS)  # Resize for display
+                    st.image(img)
         else:
-            st.write("Please enter a query.")
+            st.write("I'm sorry, I couldn't find any relevant information.")
+    else:
+        st.write("Please enter a query.")
