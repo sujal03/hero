@@ -2,19 +2,8 @@ import fitz  # PyMuPDF
 import os
 import streamlit as st
 from PIL import Image
-import nltk
-from nltk.tokenize import word_tokenize, sent_tokenize
+import re
 import io
-
-# Define a temporary directory for NLTK data
-nltk_data_dir = os.path.join(st.get_option("server.headless"), "nltk_data")
-os.makedirs(nltk_data_dir, exist_ok=True)
-
-# Specify the directory for NLTK data
-nltk.data.path.append(nltk_data_dir)
-
-# Ensure the punkt tokenizer is downloaded
-nltk.download('punkt', download_dir=nltk_data_dir)
 
 # Function to extract text and images from PDF
 def extract_pdf_content(pdf_file):
@@ -44,15 +33,15 @@ def extract_pdf_content(pdf_file):
 
     return pdf_data
 
-# Function to handle user queries
+# Function to handle user queries with simplified tokenization
 def handle_query(query, pdf_data):
-    tokens = word_tokenize(query.lower())
+    tokens = re.findall(r'\w+', query.lower())  # Tokenize the query using regex
     response_text = ""
     response_images = []
 
     # Search through the extracted PDF data for relevant content
     for page, content in pdf_data.items():
-        sentences = sent_tokenize(content["text"])
+        sentences = re.split(r'(?<=[.!?]) +', content["text"])  # Simple sentence tokenization
         matched_sentences = [sent for sent in sentences if all(token in sent.lower() for token in tokens)]
 
         if matched_sentences:
